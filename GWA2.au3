@@ -1542,174 +1542,22 @@ Func MoveTo($aX, $aY, $aRandom = 50)
 
 	Do
 		Sleep(100)
-		$lMe = GetAgentByID(-2)
+		$lMe = GetAgentPtr(-2)
 
-		If DllStructGetData($lMe, 'HP') <= 0 Then ExitLoop
+		If GetAgentInfo($lMe, 'HP') <= 0 Then ExitLoop
 
 		$lMapLoadingOld = $lMapLoading
 		$lMapLoading = GetInstanceType()
 		If $lMapLoading <> $lMapLoadingOld Then ExitLoop
 
-		If DllStructGetData($lMe, 'MoveX') == 0 And DllStructGetData($lMe, 'MoveY') == 0 Then
+		If GetAgentInfo($lMe, 'MoveX') == 0 And GetAgentInfo($lMe, 'MoveY') == 0 Then
 			$lBlocked += 1
 			$lDestX = $aX + Random(-$aRandom, $aRandom)
 			$lDestY = $aY + Random(-$aRandom, $aRandom)
 			Move($lDestX, $lDestY, 0)
 		EndIf
-	Until ComputeDistance(DllStructGetData($lMe, 'X'), DllStructGetData($lMe, 'Y'), $lDestX, $lDestY) < 25 Or $lBlocked > 14
+	Until ComputeDistance(GetAgentInfo($lMe, 'X'), GetAgentInfo($lMe, 'Y'), $lDestX, $lDestY) < 25 Or $lBlocked > 14
 EndFunc   ;==>MoveTo
-
-Func AggroMoveTo($x, $y, $s = "", $z = 1450)
-    Local $TimerToKill = TimerInit()
-    $random = 50
-    $iBlocked = 0
-
-    If $DeadOnTheRun = 0 Then Move($x, $y, $random)
-
-    $lMe = GetAgentByID(-2)
-    $coordsX = DllStructGetData($lMe, "X")
-    $coordsY = DllStructGetData($lMe, "Y")
-
-    If $DeadOnTheRun = 0 Then
-        Do
-            If $DeadOnTheRun = 1 Then ExitLoop
-            $oldCoordsX = $coordsX
-            $oldCoordsY = $coordsY
-            $nearestEnemy = GetNearestEnemyToAgent(-2)
-            $lDistance = GetDistance($nearestEnemy, -2)
-            If $lDistance < $z AND DllStructGetData($nearestEnemy, 'ID') <> 0 AND $DeadOnTheRun = 0 Then
-                Fight($z, $s)
-            EndIf
-
-            $lMe = GetAgentByID(-2)
-            $coordsX = DllStructGetData($lMe, "X")
-            $coordsY = DllStructGetData($lMe, "Y")
-            If $oldCoordsX = $coordsX AND $oldCoordsY = $coordsY Then
-                $iBlocked += 1
-                If $DeadOnTheRun = 0 Then
-                    Move($coordsX, $coordsY, 500)
-                    RndSleep(350)
-                    Move($x, $y, $random)
-                EndIf
-            EndIf
-        Until ComputeDistance($coordsX, $coordsY, $x, $y) < 250 OR $iBlocked > 20 OR $DeadOnTheRun = 1
-    EndIf
-    $TimerToKillDiff = TimerDiff($TimerToKill)
-EndFunc
-
-
-;~ Global $CustomMoveToReturn
-Global $CustomMoveToCombatLooting = False ; Set True to Loot during combat
-Global $CustomMoveToLootingDistance = 125 ; Distance at which we try to loot an looteable
-Global $CustomMoveToAggro = True ; Set to False to stop fighting with enimies within $DistanceCasting
-
-Global $CustomMoveToReturnSuccess = 1
-Global $CustomMoveToReturnDead = 2
-Global $CustomMoveToReturnStuck = 3
-Global $CustomMoveToReturnMapLoading = 4
-
-;~ Description: Move to a location and wait until you reach it.
-Func CustomMoveTo($aX, $aY, $aRandom = 50)
-	Local $lBlocked = 0
-	Local $lBlockedAbortCount = 14
-	Local $lMe
-	Local $lMapLoading = GetInstanceType(), $lMapLoadingOld
-	Local $lDestX = $aX + Random(-$aRandom, $aRandom)
-	Local $lDestY = $aY + Random(-$aRandom, $aRandom)
-	Local $lDestSuccessRange = 25
-
-	If Not GetIsCasting(-2) Then Move($lDestX, $lDestY, 0)
-
-	Do
-		Sleep(100)
-		$lMe = GetAgentByID(-2)
-		If GetIsDead($lMe) Then Return $CustomMoveToReturnDead
-
-		If DllStructGetData($lMe, 'HP') <= 0 Then ExitLoop
-
-		$lMapLoadingOld = $lMapLoading
-		$lMapLoading = GetInstanceType()
-		If $lMapLoading <> $lMapLoadingOld Then ExitLoop
-
-		; object count
-		Local $ObjectCount = GetCountInRangeOfAgent($lMe, $DistanceCasting, $NoneUnitType, $TypeObject)
-		; lootable count
-		Local $LooteableObjectCount = GetCountInRangeOfAgent($lMe, $DistanceCasting, $NoneUnitType, $TypeLooteable)
-		; enemies count
-		Local $EnemyUnitCount = GetCountInRangeOfAgent($lMe, $DistanceCasting, $UnitTypeEnemy, $TypeUnit)
-
-		Local $Object, $ObjectDistance
-		Local $LooteableObject, $LooteableObjectDistance
-		Local $EnemyUnit, $EnemyUnitDistance
-
-		Local $LITEM, $lItemName
-
-		If $EnemyUnitCount > 0 Then
-			$EnemyUnit = GetClosestInRangeOfAgent($lMe, $DistanceCasting, $UnitTypeEnemy, $TypeUnit)
-			$EnemyUnitDistance = ComputeDistance(DllStructGetData($lMe, 'X'), DllStructGetData($lMe, 'Y'), DllStructGetData($EnemyUnit, 'X'), DllStructGetData($EnemyUnit, 'Y'))
-			$LooteableObject = GetClosestInRangeOfAgent($lMe, $DistanceCasting, $NoneUnitType, $TypeLooteable)
-			$LooteableObjectDistance = ComputeDistance(DllStructGetData($lMe, 'X'), DllStructGetData($lMe, 'Y'), DllStructGetData($LooteableObject, 'X'), DllStructGetData($LooteableObject, 'Y'))
-			If $LooteableObjectCount > 0 And $CustomMoveToCombatLooting == True Then
-				; do a loop running a custom function doing the checks
-				; Maybe do a GetLoggedIn() GetAgentExists(-2) GetIsDead(-2) GetIsAttacking(-2) GetIsCasting(-2) check
-				; If GetInstanceType() == 2 Then Return $CustomMoveToReturnMapLoading
-				;
-				; Maybe a loop based on count
-				If $EnemyUnitDistance > $LooteableObjectDistance Then
-					Do
-						$lMe = GetAgentByID(-2)
-						$LooteableObjectCount = GetCountInRangeOfAgent($lMe, $DistanceCasting, $NoneUnitType, $TypeLooteable)
-						If $LooteableObjectCount == 0 Then ExitLoop
-						If GetIsDead($lMe) Then Return $CustomMoveToReturnDead
-						$LooteableObject = GetClosestInRangeOfAgent($lMe, $DistanceCasting, $NoneUnitType, $TypeLooteable)
-						$LooteableObjectDistance = ComputeDistance(DllStructGetData($lMe, 'X'), DllStructGetData($lMe, 'Y'), DllStructGetData($LooteableObject, 'X'), DllStructGetData($LooteableObject, 'Y'))
-						; Move to LooteableObject
-						If Not GetIsCasting(-2) Then Move(DllStructGetData($LooteableObject, 'X'), DllStructGetData($LooteableObject, 'Y'), 0)
-						Sleep(100)
-						If $CustomMoveToLootingDistance < $LooteableObjectDistance Then
-							$LITEM = GetItemByAgentID(DllStructGetData($LooteableObject, 'ID'))
-;~ 							logFile("Picking up "&GetItemName($lItem)&" from the ground.")
-							; Loot LooteableObject
-							PickUpItem($LITEM)
-							;PingSleep(500)
-;~ 							ExitLoop
-						EndIf
-						$LooteableObjectCount = GetCountInRangeOfAgent($lMe, $DistanceCasting, $NoneUnitType, $TypeLooteable)
-					Until $LooteableObjectCount == 0
-				EndIf
-			EndIf
-			; Interact with Unit
-			; ? calculate combat CustomUseSkill()
-			Do
-				$EnemyUnitCount = GetCountInRangeOfAgent($lMe, $DistanceCasting, $UnitTypeEnemy, $TypeUnit)
-				Sleep(100)
-			Until $EnemyUnitCount == 0
-		EndIf
-		; object count
-		$ObjectCount = GetCountInRangeOfAgent($lMe, $DistanceCasting, $NoneUnitType, $TypeObject)
-		If $ObjectCount > 0 Then
-			$Object = GetClosestInRangeOfAgent($lMe, $DistanceCasting, $NoneUnitType, $TypeObject)
-			$ObjectDistance = ComputeDistance(DllStructGetData($lMe, 'X'), DllStructGetData($lMe, 'Y'), DllStructGetData($Object, 'X'), DllStructGetData($Object, 'Y'))
-			; Sort Signposts from HiddenStashs (refine Chests.au3)
-			; Open / Interact with un-opened HiddenStashs
-		EndIf
-		; lootable count
-		$LooteableObjectCount = GetCountInRangeOfAgent($lMe, $DistanceCasting, $NoneUnitType, $TypeLooteable)
-		If $LooteableObjectCount > 0 Then
-			$LooteableObject = GetClosestInRangeOfAgent($lMe, $DistanceCasting, $NoneUnitType, $TypeLooteable)
-			$LooteableObjectDistance = ComputeDistance(DllStructGetData($lMe, 'X'), DllStructGetData($lMe, 'Y'), DllStructGetData($LooteableObject, 'X'), DllStructGetData($LooteableObject, 'Y'))
-		EndIf
-
-		If (DllStructGetData($lMe, 'MoveX') == 0) And (DllStructGetData($lMe, 'MoveY') == 0) And (Not GetIsCasting(-2)) Then
-			$lBlocked += 1
-			$lDestX = $aX + Random(-$aRandom, $aRandom)
-			$lDestY = $aY + Random(-$aRandom, $aRandom)
-			Move($lDestX, $lDestY, 0)
-		EndIf
-	Until ComputeDistance(DllStructGetData($lMe, 'X'), DllStructGetData($lMe, 'Y'), $lDestX, $lDestY) < $lDestSuccessRange Or $lBlocked > $lBlockedAbortCount
-	If ComputeDistance(DllStructGetData($lMe, 'X'), DllStructGetData($lMe, 'Y'), $lDestX, $lDestY) > $lDestSuccessRange And $lBlocked > $lBlockedAbortCount Then Return $CustomMoveToReturnStuck
-	If ComputeDistance(DllStructGetData($lMe, 'X'), DllStructGetData($lMe, 'Y'), $lDestX, $lDestY) < $lDestSuccessRange Then Return $CustomMoveToReturnSuccess
-EndFunc   ;==>CustomMoveTo
 
 ;~ Description: Run to or follow a player.
 Func GoPlayer($aAgent)
@@ -1723,32 +1571,31 @@ EndFunc   ;==>GoNPC
 
 ;~ Description: Talks to NPC and waits until you reach them.
 Func GoToNPC($aAgent)
-	If Not IsDllStruct($aAgent) Then $aAgent = GetAgentByID($aAgent)
 	Local $lMe
 	Local $lBlocked = 0
 	Local $lMapLoading = GetInstanceType(), $lMapLoadingOld
 
-	Move(DllStructGetData($aAgent, 'X'), DllStructGetData($aAgent, 'Y'), 100)
+	Move(GetAgentInfo($aAgent, 'X'), GetAgentInfo($aAgent, 'Y'), 100)
 	Sleep(100)
 	GoNPC($aAgent)
 
 	Do
 		Sleep(100)
-		$lMe = GetAgentByID(-2)
+		$lMe = GetAgentPtr(-2)
 
-		If DllStructGetData($lMe, 'HP') <= 0 Then ExitLoop
+		If GetAgentInfo($lMe, 'HP') <= 0 Then ExitLoop
 
 		$lMapLoadingOld = $lMapLoading
 		$lMapLoading = GetInstanceType()
 		If $lMapLoading <> $lMapLoadingOld Then ExitLoop
 
-		If DllStructGetData($lMe, 'MoveX') == 0 And DllStructGetData($lMe, 'MoveY') == 0 Then
+		If GetAgentInfo($lMe, 'MoveX') == 0 And GetAgentInfo($lMe, 'MoveY') == 0 Then
 			$lBlocked += 1
-			Move(DllStructGetData($aAgent, 'X'), DllStructGetData($aAgent, 'Y'), 100)
+			Move(GetAgentInfo($aAgent, 'X'), GetAgentInfo($aAgent, 'Y'), 100)
 			Sleep(100)
 			GoNPC($aAgent)
 		EndIf
-	Until ComputeDistance(DllStructGetData($lMe, 'X'), DllStructGetData($lMe, 'Y'), DllStructGetData($aAgent, 'X'), DllStructGetData($aAgent, 'Y')) < 250 Or $lBlocked > 14
+	Until ComputeDistance(GetAgentInfo($lMe, 'X'), GetAgentInfo($lMe, 'Y'), GetAgentInfo($aAgent, 'X'), GetAgentInfo($aAgent, 'Y')) < 250 Or $lBlocked > 14
 	Sleep(GetPing() + Random(1500, 2000, 1))
 EndFunc   ;==>GoToNPC
 
@@ -1762,32 +1609,31 @@ EndFunc   ;==>GoSignpost
 
 ;~ Description: Go to signpost and waits until you reach it.
 Func GoToSignpost($aAgent)
-	If Not IsDllStruct($aAgent) Then $aAgent = GetAgentByID($aAgent)
 	Local $lMe
 	Local $lBlocked = 0
 	Local $lMapLoading = GetInstanceType(), $lMapLoadingOld
 
-	Move(DllStructGetData($aAgent, 'X'), DllStructGetData($aAgent, 'Y'), 100)
+	Move(GetAgentInfo($aAgent, 'X'), GetAgentInfo($aAgent, 'Y'), 100)
 	Sleep(100)
 	GoSignpost($aAgent)
 
 	Do
 		Sleep(100)
-		$lMe = GetAgentByID(-2)
+		$lMe = GetAgentPtr(-2)
 
-		If DllStructGetData($lMe, 'HP') <= 0 Then ExitLoop
+		If GetAgentInfo($lMe, 'HP') <= 0 Then ExitLoop
 
 		$lMapLoadingOld = $lMapLoading
 		$lMapLoading = GetInstanceType()
 		If $lMapLoading <> $lMapLoadingOld Then ExitLoop
 
-		If DllStructGetData($lMe, 'MoveX') == 0 And DllStructGetData($lMe, 'MoveY') == 0 Then
+		If GetAgentInfo($lMe, 'MoveX') == 0 And GetAgentInfo($lMe, 'MoveY') == 0 Then
 			$lBlocked += 1
-			Move(DllStructGetData($aAgent, 'X'), DllStructGetData($aAgent, 'Y'), 100)
+			Move(GetAgentInfo($aAgent, 'X'), GetAgentInfo($aAgent, 'Y'), 100)
 			Sleep(100)
 			GoSignpost($aAgent)
 		EndIf
-	Until ComputeDistance(DllStructGetData($lMe, 'X'), DllStructGetData($lMe, 'Y'), DllStructGetData($aAgent, 'X'), DllStructGetData($aAgent, 'Y')) < 250 Or $lBlocked > 14
+	Until ComputeDistance(GetAgentInfo($lMe, 'X'), GetAgentInfo($lMe, 'Y'), GetAgentInfo($aAgent, 'X'), GetAgentInfo($aAgent, 'Y')) < 250 Or $lBlocked > 14
 	Sleep(GetPing() + Random(1500, 2000, 1))
 EndFunc   ;==>GoToSignpost
 
@@ -2435,7 +2281,7 @@ Func _LogDialogID($aDialogID, $aAgent)
 	Local $sFilePath = @ScriptDir & "\DialogLog.txt"
 	Local $hFile = FileOpen($sFilePath, 1)
 	Local $mapID = GetMapID()
-	Local $agentID = DllStructGetData($aAgent, 'ID')
+	Local $agentID = GetAgentInfo($aAgent, 'ID')
 
 	If $hFile = -1 Then
 		MsgBox(0, "Error", "Failed to open log file.")
@@ -3106,14 +2952,12 @@ EndFunc   ;==>GetModStruct
 
 ;~ Description: Tests if an item is assigned to you.
 Func GetAssignedToMe($aAgent)
-	If IsDllStruct($aAgent) = 0 Then $aAgent = GetAgentByID($aAgent)
-	Return (DllStructGetData($aAgent, 'Owner') = GetMyID())
+	Return (GetAgentInfo($aAgent, 'Owner') = GetMyID())
 EndFunc   ;==>GetAssignedToMe
 
 ;~ Description: Tests if you can pick up an item.
 Func GetCanPickUp($aAgent)
-	If IsDllStruct($aAgent) = 0 Then $aAgent = GetAgentByID($aAgent)
-	If GetAssignedToMe($aAgent) Or DllStructGetData($aAgent, 'Owner') = 0 Then
+	If GetAssignedToMe($aAgent) Or GetAgentInfo($aAgent, 'Owner') = 0 Then
 		Return True
 	Else
 		Return False
@@ -3195,14 +3039,13 @@ EndFunc   ;==>GetItemByItemID
 Func GetNearestItemByModelIDToAgent($aModelID, $aAgent = -2, $aCanPickUp = True)
 	Local $lNearestAgent, $lNearestDistance = 100000000
 	Local $lDistance
-	If Not IsDllStruct($aAgent) Then $aAgent = GetAgentByID($aAgent)
 	If GetMaxAgents() > 0 Then
 		For $i = 1 To GetMaxAgents()
-			Local $a = GetAgentByID($i)
+			Local $a = GetAgentPtr($i)
 			If Not GetIsMovable($a) Then ContinueLoop
 			Local $aMID = DllStructGetData(GetItemByAgentID($i), "ModelID")
 			If $aMID = $aModelID Then    ;Item matches
-				$lDistance = (DllStructGetData($aAgent, 'X') - DllStructGetData($a, 'X')) ^ 2 + (DllStructGetData($aAgent, 'Y') - DllStructGetData($a, 'Y')) ^ 2
+				$lDistance = (GetAgentInfo($aAgent, 'X') - GetAgentInfo($a, 'X')) ^ 2 + (GetAgentInfo($aAgent, 'Y') - GetAgentInfo($a, 'Y')) ^ 2
 				If $lDistance < $lNearestDistance Then
 					$lNearestAgent = $a
 					$lNearestDistance = $lDistance
@@ -3640,7 +3483,7 @@ Func GetAgentInfo($aAgentID, $aInfo = "")
     Return 0
 EndFunc
 
-;~ Description: Internal use for GetAgentByID()
+;~ Description: Internal use for GetAgentByID/GetAgentInfo()
 Func GetAgentPtr($aAgentID = -2)
 	Local $lOffset[3] = [0, 4 * ConvertID($aAgentID), 0]
 	Local $lAgentStructAddress = MemoryReadPtr($mAgentBase, $lOffset)
@@ -3649,7 +3492,7 @@ EndFunc   ;==>GetAgentPtr
 
 ;~ Description: Test if an agent exists.
 Func GetAgentExists($aAgentID)
-	Return (GetAgentPtr($aAgentID) > 0 And $aAgentID < GetMaxAgents())
+	Return GetAgentPtr($aAgentID) <> 0
 EndFunc   ;==>GetAgentExists
 
 ;~ Description: Returns the target of an agent.
@@ -3661,7 +3504,7 @@ EndFunc   ;==>GetTarget
 Func GetAgentByPlayerName($aPlayerName)
 	For $i = 1 To GetMaxAgents()
 		If GetPlayerName($i) = $aPlayerName Then
-			Return GetAgentByID($i)
+			Return GetAgentPtr($i)
 		EndIf
 	Next
 EndFunc   ;==>GetAgentByPlayerName
@@ -3676,7 +3519,7 @@ Func GetAgentByName($aName)
 		$lAddress = $mStringLogBase + 256 * $i
 		$lName = MemoryRead($lAddress, 'wchar [128]')
 		$lName = StringRegExpReplace($lName, '[<]{1}([^>]+)[>]{1}', '')
-		If StringInStr($lName, $aName) > 0 Then Return GetAgentByID($i)
+		If StringInStr($lName, $aName) > 0 Then Return GetAgentPtr($i)
 	Next
 
 	DisplayAll(True)
@@ -3690,7 +3533,7 @@ Func GetAgentByName($aName)
 		$lAddress = $mStringLogBase + 256 * $i
 		$lName = MemoryRead($lAddress, 'wchar [128]')
 		$lName = StringRegExpReplace($lName, '[<]{1}([^>]+)[>]{1}', '')
-		If StringInStr($lName, $aName) > 0 Then Return GetAgentByID($i)
+		If StringInStr($lName, $aName) > 0 Then Return GetAgentPtr($i)
 	Next
 EndFunc   ;==>GetAgentByName
 
@@ -3700,15 +3543,13 @@ Func GetNearestAgentToAgent($aAgent = -2)
 	Local $lDistance
 	Local $lAgentArray = GetAgentArray()
 
-	If IsDllStruct($aAgent) = 0 Then $aAgent = GetAgentByID($aAgent)
-
-	Local $lID = DllStructGetData($aAgent, 'ID')
+	Local $lID = GetAgentInfo($aAgent, 'ID')
 
 	For $i = 1 To $lAgentArray[0]
-		$lDistance = (DllStructGetData($aAgent, 'X') - DllStructGetData($lAgentArray[$i], 'X')) ^ 2 + (DllStructGetData($aAgent, 'Y') - DllStructGetData($lAgentArray[$i], 'Y')) ^ 2
+		$lDistance = (GetAgentInfo($aAgent, 'X') - GetAgentInfo($lAgentArray[$i], 'X')) ^ 2 + (GetAgentInfo($aAgent, 'Y') - GetAgentInfo($lAgentArray[$i], 'Y')) ^ 2
 
 		If $lDistance < $lNearestDistance Then
-			If DllStructGetData($lAgentArray[$i], 'ID') == $lID Then ContinueLoop
+			If GetAgentInfo($lAgentArray[$i], 'ID') == $lID Then ContinueLoop
 			$lNearestAgent = $lAgentArray[$i]
 			$lNearestDistance = $lDistance
 		EndIf
@@ -3724,19 +3565,17 @@ Func GetNearestEnemyToAgent($aAgent = -2)
 	Local $lDistance
 	Local $lAgentArray = GetAgentArray(0xDB)
 
-	If Not IsDllStruct($aAgent) Then $aAgent = GetAgentByID($aAgent)
-
-	Local $lID = DllStructGetData($aAgent, 'ID')
+	Local $lID = GetAgentInfo($aAgent, 'ID')
 
 	For $i = 1 To $lAgentArray[0]
-		$lDistance = (DllStructGetData($aAgent, 'X') - DllStructGetData($lAgentArray[$i], 'X')) ^ 2 + (DllStructGetData($aAgent, 'Y') - DllStructGetData($lAgentArray[$i], 'Y')) ^ 2
-		If DllStructGetData($lAgentArray[$i], 'Allegiance') <> 3 Then ContinueLoop
-		If DllStructGetData($lAgentArray[$i], 'HP') <= 0 Then ContinueLoop
-		If BitAND(DllStructGetData($lAgentArray[$i], 'Effects'), 0x0010) > 0 Then ContinueLoop
+		$lDistance = (GetAgentInfo($aAgent, 'X') - GetAgentInfo($lAgentArray[$i], 'X')) ^ 2 + (GetAgentInfo($aAgent, 'Y') - GetAgentInfo($lAgentArray[$i], 'Y')) ^ 2
+		If GetAgentInfo($lAgentArray[$i], 'Allegiance') <> 3 Then ContinueLoop
+		If GetAgentInfo($lAgentArray[$i], 'HP') <= 0 Then ContinueLoop
+		If BitAND(GetAgentInfo($lAgentArray[$i], 'Effects'), 0x0010) > 0 Then ContinueLoop
 
-		$lDistance = (DllStructGetData($aAgent, 'X') - DllStructGetData($lAgentArray[$i], 'X')) ^ 2 + (DllStructGetData($aAgent, 'Y') - DllStructGetData($lAgentArray[$i], 'Y')) ^ 2
+		$lDistance = (GetAgentInfo($aAgent, 'X') - GetAgentInfo($lAgentArray[$i], 'X')) ^ 2 + (GetAgentInfo($aAgent, 'Y') - GetAgentInfo($lAgentArray[$i], 'Y')) ^ 2
 		If $lDistance < $lNearestDistance Then
-			If DllStructGetData($lAgentArray[$i], 'ID') == $lID Then ContinueLoop
+			If GetAgentInfo($lAgentArray[$i], 'ID') == $lID Then ContinueLoop
 			$lNearestAgent = $lAgentArray[$i]
 			$lNearestDistance = $lDistance
 		EndIf
@@ -3746,87 +3585,11 @@ Func GetNearestEnemyToAgent($aAgent = -2)
 	Return $lNearestAgent
 EndFunc   ;==>GetNearestEnemyToAgent
 
-;~ Description: Returns the nearest agent to a set of coordinates.
-Func GoToNearestNPC($aX, $aY)
-   Local $lNearestAgent = 0  ;  variable $lNearestAgent is always 0, so the function will always return immediately
-   If Not IsDllStruct($lNearestAgent) Then
-      Return
-   EndIf
-
-   Local $lAgentX = DllStructGetData($lNearestAgent, 'X')
-   Local $lAgentY = DllStructGetData($lNearestAgent, 'Y')
-   Local $lMe
-   Local $lBlocked = 0
-   Local $lMapLoading = GetInstanceType(), $lMapLoadingOld
-
-   Move($lAgentX, $lAgentY, 100)
-   Sleep(100)
-   GoNPC($lNearestAgent)
-
-   Do
-      Sleep(100)
-      $lMe = GetAgentByID(-2)
-
-      If DllStructGetData($lMe, 'HP') <= 0 Then ExitLoop
-
-      $lMapLoadingOld = $lMapLoading
-      $lMapLoading = GetInstanceType()
-      If $lMapLoading <> $lMapLoadingOld Then ExitLoop
-
-      If DllStructGetData($lMe, 'MoveX') == 0 And DllStructGetData($lMe, 'MoveY') == 0 Then
-        $lBlocked += 1
-        Move($lAgentX, $lAgentY, 100)
-        Sleep(100)
-        GoNPC($lNearestAgent)
-      EndIf
-   Until ComputeDistance(DllStructGetData($lMe, 'X'), DllStructGetData($lMe, 'Y'), $lAgentX, $lAgentY) < 250 Or $lBlocked > 14
-   Sleep(GetPing() + Random(1500, 2000, 1))
-EndFunc  ;==>GoToNearestNPC
-
-
-Func GoToNearestNPC2($aX, $aY)
-   Local $lNearestAgent = GetNearestNPCToCoords($aX, $aY)  ;to get the nearest agent to the specified coordinates.
-   If Not IsDllStruct($lNearestAgent) Then
-      Return
-   EndIf
-
-   Local $lAgentX = DllStructGetData($lNearestAgent, 'X')
-   Local $lAgentY = DllStructGetData($lNearestAgent, 'Y')
-   Local $lMe
-   Local $lBlocked = 0
-   Local $lMapLoading = GetInstanceType(), $lMapLoadingOld
-
-   Move($lAgentX, $lAgentY, 100)
-   Sleep(100)
-   GoNPC($lNearestAgent)
-
-   Do
-      Sleep(100)
-      $lMe = GetAgentByID(-2)
-
-      If DllStructGetData($lMe, 'HP') <= 0 Then ExitLoop
-
-      $lMapLoadingOld = $lMapLoading
-      $lMapLoading = GetInstanceType()
-      If $lMapLoading <> $lMapLoadingOld Then ExitLoop
-
-      If DllStructGetData($lMe, 'MoveX') == 0 And DllStructGetData($lMe, 'MoveY') == 0 Then
-        $lBlocked += 1
-        Move($lAgentX, $lAgentY, 100)
-        Sleep(100)
-        GoNPC($lNearestAgent)
-      EndIf
-   Until ComputeDistance(DllStructGetData($lMe, 'X'), DllStructGetData($lMe, 'Y'), $lAgentX, $lAgentY) < 250 Or $lBlocked > 14
-   Sleep(GetPing() + Random(1500, 2000, 1))
-EndFunc  ;==>GoToNearestNPC
-
-
-
 Func GetAgentByPlayerNumber($aPlayerNumber)
 	Local $lAgentArray = GetAgentArray()
-	If IsDllStruct($aPlayerNumber) Then Return DllStructGetData($aPlayerNumber, "PlayerNumber")
+
 	For $i = 1 To $lAgentArray[0]
-		If DllStructGetData($lAgentArray[$i], "PlayerNumber") == $aPlayerNumber Then Return $lAgentArray[$i]
+		If GetAgentInfo($lAgentArray[$i], "PlayerNumber") == $aPlayerNumber Then Return $lAgentArray[$i]
 	Next
 EndFunc   ;==>GetAgentByPlayerNumber
 
@@ -3837,14 +3600,12 @@ Func GetNearestSignpostToAgent($aAgent = -2)
 	Local $lDistance
 	Local $lAgentArray = GetAgentArray(0x200)
 
-	If IsDllStruct($aAgent) = 0 Then $aAgent = GetAgentByID($aAgent)
-
-	Local $lID = DllStructGetData($aAgent, 'ID')
+	Local $lID = GetAgentInfo($aAgent, 'ID')
 
 	For $i = 1 To $lAgentArray[0]
-		$lDistance = (DllStructGetData($lAgentArray[$i], 'Y') - DllStructGetData($aAgent, 'Y')) ^ 2 + (DllStructGetData($lAgentArray[$i], 'X') - DllStructGetData($aAgent, 'X')) ^ 2
+		$lDistance = (GetAgentInfo($lAgentArray[$i], 'Y') - GetAgentInfo($aAgent, 'Y')) ^ 2 + (GetAgentInfo($lAgentArray[$i], 'X') - GetAgentInfo($aAgent, 'X')) ^ 2
 		If $lDistance < $lNearestDistance Then
-			If DllStructGetData($lAgentArray[$i], 'ID') == $lID Then ContinueLoop
+			If GetAgentInfo($lAgentArray[$i], 'ID') == $lID Then ContinueLoop
 			$lNearestAgent = $lAgentArray[$i]
 			$lNearestDistance = $lDistance
 		EndIf
@@ -3861,7 +3622,7 @@ Func GetNearestSignpostToCoords($aX, $aY)
 	Local $lAgentArray = GetAgentArray(0x200)
 
 	For $i = 1 To $lAgentArray[0]
-		$lDistance = ($aX - DllStructGetData($lAgentArray[$i], 'X')) ^ 2 + ($aY - DllStructGetData($lAgentArray[$i], 'Y')) ^ 2
+		$lDistance = ($aX - GetAgentInfo($lAgentArray[$i], 'X')) ^ 2 + ($aY - GetAgentInfo($lAgentArray[$i], 'Y')) ^ 2
 
 		If $lDistance < $lNearestDistance Then
 			$lNearestAgent = $lAgentArray[$i]
@@ -3879,18 +3640,16 @@ Func GetNearestNPCToAgent($aAgent)
 	Local $lDistance
 	Local $lAgentArray = GetAgentArray(0xDB)
 
-	If Not IsDllStruct($aAgent) Then $aAgent = GetAgentByID($aAgent)
-
-	Local $lID = DllStructGetData($aAgent, 'ID')
+	Local $lID = GetAgentInfo($aAgent, 'ID')
 
 	For $i = 1 To $lAgentArray[0]
-		If DllStructGetData($lAgentArray[$i], 'Allegiance') <> 6 Then ContinueLoop
-		If DllStructGetData($lAgentArray[$i], 'HP') <= 0 Then ContinueLoop
-		If BitAND(DllStructGetData($lAgentArray[$i], 'Effects'), 0x0010) > 0 Then ContinueLoop
+		If GetAgentInfo($lAgentArray[$i], 'Allegiance') <> 6 Then ContinueLoop
+		If GetAgentInfo($lAgentArray[$i], 'HP') <= 0 Then ContinueLoop
+		If BitAND(GetAgentInfo($lAgentArray[$i], 'Effects'), 0x0010) > 0 Then ContinueLoop
 
-		$lDistance = (DllStructGetData($aAgent, 'X') - DllStructGetData($lAgentArray[$i], 'X')) ^ 2 + (DllStructGetData($aAgent, 'Y') - DllStructGetData($lAgentArray[$i], 'Y')) ^ 2
+		$lDistance = (GetAgentInfo($aAgent, 'X') - GetAgentInfo($lAgentArray[$i], 'X')) ^ 2 + (GetAgentInfo($aAgent, 'Y') - GetAgentInfo($lAgentArray[$i], 'Y')) ^ 2
 		If $lDistance < $lNearestDistance Then
-			If DllStructGetData($lAgentArray[$i], 'ID') == $lID Then ContinueLoop
+			If GetAgentInfo($lAgentArray[$i], 'ID') == $lID Then ContinueLoop
 			$lNearestAgent = $lAgentArray[$i]
 			$lNearestDistance = $lDistance
 		EndIf
@@ -3907,12 +3666,12 @@ Func GetNearestNPCToCoords($aX, $aY)
 	Local $lAgentArray = GetAgentArray(0xDB)
 
 	For $i = 1 To $lAgentArray[0]
-		If DllStructGetData($lAgentArray[$i], 'Allegiance') <> 6 Then ContinueLoop
-		If DllStructGetData($lAgentArray[$i], 'HP') <= 0 Then ContinueLoop
-		If BitAND(DllStructGetData($lAgentArray[$i], 'Effects'), 0x0010) > 0 Then ContinueLoop
+		If GetAgentInfo($lAgentArray[$i], 'Allegiance') <> 6 Then ContinueLoop
+		If GetAgentInfo($lAgentArray[$i], 'HP') <= 0 Then ContinueLoop
+		If BitAND(GetAgentInfo($lAgentArray[$i], 'Effects'), 0x0010) > 0 Then ContinueLoop
 
-		$lDistance = ($aX - DllStructGetData($lAgentArray[$i], 'X')) ^ 2 + ($aY - DllStructGetData($lAgentArray[$i], 'Y')) ^ 2
-		;$lDistance = (($aX - DllStructGetData($lAgentArray[$i], 'X')) * ($aX - DllStructGetData($lAgentArray[$i], 'X'))) + (($aY - DllStructGetData($lAgentArray[$i], 'Y')) * ($aY - DllStructGetData($lAgentArray[$i], 'Y')))
+		$lDistance = ($aX - GetAgentInfo($lAgentArray[$i], 'X')) ^ 2 + ($aY - GetAgentInfo($lAgentArray[$i], 'Y')) ^ 2
+		;$lDistance = (($aX - GetAgentInfo($lAgentArray[$i], 'X')) * ($aX - GetAgentInfo($lAgentArray[$i], 'X'))) + (($aY - GetAgentInfo($lAgentArray[$i], 'Y')) * ($aY - GetAgentInfo($lAgentArray[$i], 'Y')))
 
 
 		If $lDistance < $lNearestDistance Then
@@ -3933,16 +3692,14 @@ Func GetNearestItemToAgent($aAgent = -2, $aCanPickUp = True)
 	Local $lDistance
 	Local $lAgentArray = GetAgentArray(0x400)
 
-	If Not IsDllStruct($aAgent) Then $aAgent = GetAgentByID($aAgent)
-
-	Local $lID = DllStructGetData($aAgent, 'ID')
+	Local $lID = GetAgentInfo($aAgent, 'ID')
 
 	For $i = 1 To $lAgentArray[0]
 
 		If $aCanPickUp And Not GetCanPickUp($lAgentArray[$i]) Then ContinueLoop
-		$lDistance = (DllStructGetData($aAgent, 'X') - DllStructGetData($lAgentArray[$i], 'X')) ^ 2 + (DllStructGetData($aAgent, 'Y') - DllStructGetData($lAgentArray[$i], 'Y')) ^ 2
+		$lDistance = (GetAgentInfo($aAgent, 'X') - GetAgentInfo($lAgentArray[$i], 'X')) ^ 2 + (GetAgentInfo($aAgent, 'Y') - GetAgentInfo($lAgentArray[$i], 'Y')) ^ 2
 		If $lDistance < $lNearestDistance Then
-			If DllStructGetData($lAgentArray[$i], 'ID') == $lID Then ContinueLoop
+			If GetAgentInfo($lAgentArray[$i], 'ID') == $lID Then ContinueLoop
 			$lNearestAgent = $lAgentArray[$i]
 			$lNearestDistance = $lDistance
 		EndIf
@@ -3958,8 +3715,8 @@ Func GetParty($aAgentArray = 0)
 	Local $lReturnArray[1] = [0]
 	If $aAgentArray == 0 Then $aAgentArray = GetAgentArray(0xDB)
 	For $i = 1 To $aAgentArray[0]
-		If DllStructGetData($aAgentArray[$i], 'Allegiance') == 1 Then
-			If BitAND(DllStructGetData($aAgentArray[$i], 'TypeMap'), 131072) Then
+		If GetAgentInfo($aAgentArray[$i], 'Allegiance') == 1 Then
+			If BitAND(GetAgentInfo($aAgentArray[$i], 'TypeMap'), 131072) Then
 				$lReturnArray[0] += 1
 				ReDim $lReturnArray[$lReturnArray[0] + 1]
 				$lReturnArray[$lReturnArray[0]] = $aAgentArray[$i]
@@ -3998,15 +3755,13 @@ Func GetAgentArray($aType = 0xDB, $aAllegiance = 0)
             Local $lAdd = True
 
             If $aType <> 0 Then
-                Local $lAgent = GetAgentByID($lAgentID)
-                If DllStructGetData($lAgent, 'Type') <> $aType Then
+                If GetAgentInfo($lAgentPtr, 'Type') <> $aType Then
                     $lAdd = False
                 EndIf
             EndIf
 
             If $aAllegiance <> 0 And $lAdd Then
-                Local $lAgent = GetAgentByID($lAgentID)
-                If DllStructGetData($lAgent, 'Allegiance') <> $aAllegiance Then
+                If GetAgentInfo($lAgentPtr, 'Allegiance') <> $aAllegiance Then
                     $lAdd = False
                 EndIf
             EndIf
@@ -4022,7 +3777,7 @@ Func GetAgentArray($aType = 0xDB, $aAllegiance = 0)
     $lReturnArray[0] = $lAgentCount
 
     For $i = 1 To $lAgentCount
-        $lReturnArray[$i] = GetAgentByID($lTempIDs[$i-1])
+        $lReturnArray[$i] = GetAgentInfo($lTempIDs[$i-1], "ID")
     Next
 
     Return $lReturnArray
@@ -4046,19 +3801,19 @@ Func GetPartyDanger($aAgentArray = 0, $aParty = 0)
 	Next
 
 	For $i = 1 To $aAgentArray[0]
-		If BitAND(DllStructGetData($aAgentArray[$i], 'Effects'), 0x0010) > 0 Then ContinueLoop
-		If DllStructGetData($aAgentArray[$i], 'HP') <= 0 Then ContinueLoop
+		If BitAND(GetAgentInfo($aAgentArray[$i], 'Effects'), 0x0010) > 0 Then ContinueLoop
+		If GetAgentInfo($aAgentArray[$i], 'HP') <= 0 Then ContinueLoop
 		If Not GetIsLiving($aAgentArray[$i]) Then ContinueLoop
-		If DllStructGetData($aAgentArray[$i], "Allegiance") > 3 Then ContinueLoop ; ignore NPCs, spirits, minions, pets
+		If GetAgentInfo($aAgentArray[$i], "Allegiance") > 3 Then ContinueLoop ; ignore NPCs, spirits, minions, pets
 
 		For $j = 1 To $aParty[0]
-			If GetTarget(DllStructGetData($aAgentArray[$i], "ID")) == DllStructGetData($aParty[$j], "ID") Then
+			If GetTarget(GetAgentInfo($aAgentArray[$i], "ID")) == GetAgentInfo($aParty[$j], "ID") Then
 				If GetDistance($aAgentArray[$i], $aParty[$j]) < 5000 Then
-					If DllStructGetData($aAgentArray[$i], "Team") <> 0 Then
-						If DllStructGetData($aAgentArray[$i], "Team") <> DllStructGetData($aParty[$j], "Team") Then
+					If GetAgentInfo($aAgentArray[$i], "Team") <> 0 Then
+						If GetAgentInfo($aAgentArray[$i], "Team") <> GetAgentInfo($aParty[$j], "Team") Then
 							$lReturnArray[$j] += 1
 						EndIf
-					ElseIf DllStructGetData($aAgentArray[$i], "Allegiance") <> DllStructGetData($aParty[$j], "Allegiance") Then
+					ElseIf GetAgentInfo($aAgentArray[$i], "Allegiance") <> GetAgentInfo($aParty[$j], "Allegiance") Then
 						$lReturnArray[$j] += 1
 					EndIf
 				EndIf
@@ -4070,26 +3825,22 @@ EndFunc   ;==>GetPartyDanger
 
 ;~ Description: Return the number of enemy agents targeting the given agent.
 Func GetAgentDanger($aAgent, $aAgentArray = 0)
-	If IsDllStruct($aAgent) = 0 Then
-		$aAgent = GetAgentByID($aAgent)
-	EndIf
-
 	Local $lCount = 0
 
 	If $aAgentArray == 0 Then $aAgentArray = GetAgentArray(0xDB)
 
 	For $i = 1 To $aAgentArray[0]
 		If (GetIsDead($aAgentArray[$i] == True)) Then ContinueLoop
-		If DllStructGetData($aAgentArray[$i], 'HP') <= 0 Then ContinueLoop
+		If GetAgentInfo($aAgentArray[$i], 'HP') <= 0 Then ContinueLoop
 		If Not GetIsLiving($aAgentArray[$i]) Then ContinueLoop
-		If DllStructGetData($aAgentArray[$i], "Allegiance") > 3 Then ContinueLoop ; ignore NPCs, spirits, minions, pets
-		If GetTarget(DllStructGetData($aAgentArray[$i], "ID")) == DllStructGetData($aAgent, "ID") Then
+		If GetAgentInfo($aAgentArray[$i], "Allegiance") > 3 Then ContinueLoop ; ignore NPCs, spirits, minions, pets
+		If GetTarget(GetAgentInfo($aAgentArray[$i], "ID")) == GetAgentInfo($aAgent, "ID") Then
 			If GetDistance($aAgentArray[$i], $aAgent) < 5000 Then
-				If DllStructGetData($aAgentArray[$i], "Team") <> 0 Then
-					If DllStructGetData($aAgentArray[$i], "Team") <> DllStructGetData($aAgent, "Team") Then
+				If GetAgentInfo($aAgentArray[$i], "Team") <> 0 Then
+					If GetAgentInfo($aAgentArray[$i], "Team") <> GetAgentInfo($aAgent, "Team") Then
 						$lCount += 1
 					EndIf
-				ElseIf DllStructGetData($aAgentArray[$i], "Allegiance") <> DllStructGetData($aAgent, "Allegiance") Then
+				ElseIf GetAgentInfo($aAgentArray[$i], "Allegiance") <> GetAgentInfo($aAgent, "Allegiance") Then
 					$lCount += 1
 				EndIf
 			EndIf
@@ -4102,51 +3853,43 @@ EndFunc   ;==>GetAgentDanger
 #Region AgentInfo
 ;~ Description: Tests if an agent is living.
 Func GetIsLiving($aAgent)
-	If IsDllStruct($aAgent) = 0 Then $aAgent = GetAgentByID($aAgent)
-	Return DllStructGetData($aAgent, 'Type') = 0xDB
+	Return GetAgentInfo($aAgent, 'Type') = 0xDB
 EndFunc   ;==>GetIsLiving
 
 ;~ Description: Tests if an agent is a signpost/chest/etc.
 Func GetIsStatic($aAgent)
-	If IsDllStruct($aAgent) = 0 Then $aAgent = GetAgentByID($aAgent)
-	Return DllStructGetData($aAgent, 'Type') = 0x200
+	Return GetAgentInfo($aAgent, 'Type') = 0x200
 EndFunc   ;==>GetIsStatic
 
 ;~ Description: Tests if an agent is an item.
 Func GetIsMovable($aAgent)
-	If IsDllStruct($aAgent) = 0 Then $aAgent = GetAgentByID($aAgent)
-	Return DllStructGetData($aAgent, 'Type') = 0x400
+	Return GetAgentInfo($aAgent, 'Type') = 0x400
 EndFunc   ;==>GetIsMovable
 
 ;~ Description: Returns energy of an agent. (Only self/heroes)
 Func GetEnergy($aAgent = -2)
-	If IsDllStruct($aAgent) = 0 Then $aAgent = GetAgentByID($aAgent)
-	Return DllStructGetData($aAgent, 'EnergyPercent') * DllStructGetData($aAgent, 'MaxEnergy')
+	Return GetAgentInfo($aAgent, 'EnergyPercent') * GetAgentInfo($aAgent, 'MaxEnergy')
 EndFunc   ;==>GetEnergy
 
 ;~ Description: Returns health of an agent. (Must have caused numerical change in health)
 Func GetHealth($aAgent = -2)
-	If IsDllStruct($aAgent) = 0 Then $aAgent = GetAgentByID($aAgent)
-	Return DllStructGetData($aAgent, 'HP') * DllStructGetData($aAgent, 'MaxHP')
+	Return GetAgentInfo($aAgent, 'HP') * GetAgentInfo($aAgent, 'MaxHP')
 EndFunc   ;==>GetHealth
 
 ;~ Description: Tests if an agent is moving.
 Func GetIsMoving($aAgent)
-	If IsDllStruct($aAgent) = 0 Then $aAgent = GetAgentByID($aAgent)
-	If DllStructGetData($aAgent, 'MoveX') <> 0 Or DllStructGetData($aAgent, 'MoveY') <> 0 Then Return True
+	If GetAgentInfo($aAgent, 'MoveX') <> 0 Or GetAgentInfo($aAgent, 'MoveY') <> 0 Then Return True
 	Return False
 EndFunc   ;==>GetIsMoving
 
 ;~ Description: Tests if an agent is knocked down.
 Func GetIsKnocked($aAgent)
-	If IsDllStruct($aAgent) = 0 Then $aAgent = GetAgentByID($aAgent)
-	Return DllStructGetData($aAgent, 'ModelState') = 0x450
+	Return GetAgentInfo($aAgent, 'ModelState') = 0x450
 EndFunc   ;==>GetIsKnocked
 
 ;~ Description: Tests if an agent is attacking.
 Func GetIsAttacking($aAgent)
-	If IsDllStruct($aAgent) = 0 Then $aAgent = GetAgentByID($aAgent)
-	Switch DllStructGetData($aAgent, 'ModelState')
+	Switch GetAgentInfo($aAgent, 'ModelState')
 		Case 0x60 ; Is Attacking
 			Return True
 		Case 0x440 ; Is Attacking
@@ -4160,74 +3903,62 @@ EndFunc   ;==>GetIsAttacking
 
 ;~ Description: Tests if an agent is casting.
 Func GetIsCasting($aAgent)
-	If IsDllStruct($aAgent) = 0 Then $aAgent = GetAgentByID($aAgent)
-	Return DllStructGetData($aAgent, 'Skill') <> 0
+	Return GetAgentInfo($aAgent, 'Skill') <> 0
 EndFunc   ;==>GetIsCasting
 
 ;~ Description: Tests if an agent is bleeding.
 Func GetIsBleeding($aAgent)
-	If IsDllStruct($aAgent) = 0 Then $aAgent = GetAgentByID($aAgent)
-	Return BitAND(DllStructGetData($aAgent, 'Effects'), 0x0001) > 0
+	Return BitAND(GetAgentInfo($aAgent, 'Effects'), 0x0001) > 0
 EndFunc   ;==>GetIsBleeding
 
 ;~ Description: Tests if an agent has a condition.
 Func GetHasCondition($aAgent)
-	If IsDllStruct($aAgent) = 0 Then $aAgent = GetAgentByID($aAgent)
-	Return BitAND(DllStructGetData($aAgent, 'Effects'), 0x0002) > 0
+	Return BitAND(GetAgentInfo($aAgent, 'Effects'), 0x0002) > 0
 EndFunc   ;==>GetHasCondition
 
 ;~ Description: Tests if an agent is dead.
 Func GetIsDead($aAgent)
-	If IsDllStruct($aAgent) = 0 Then $aAgent = GetAgentByID($aAgent)
-	Return BitAND(DllStructGetData($aAgent, 'Effects'), 0x0010) > 0
+	Return BitAND(GetAgentInfo($aAgent, 'Effects'), 0x0010) > 0
 EndFunc   ;==>GetIsDead
 
 ;~ Description: Tests if an agent has a deep wound.
 Func GetHasDeepWound($aAgent)
-	If IsDllStruct($aAgent) = 0 Then $aAgent = GetAgentByID($aAgent)
-	Return BitAND(DllStructGetData($aAgent, 'Effects'), 0x0020) > 0
+	Return BitAND(GetAgentInfo($aAgent, 'Effects'), 0x0020) > 0
 EndFunc   ;==>GetHasDeepWound
 
 ;~ Description: Tests if an agent is poisoned.
 Func GetIsPoisoned($aAgent)
-	If IsDllStruct($aAgent) = 0 Then $aAgent = GetAgentByID($aAgent)
-	Return BitAND(DllStructGetData($aAgent, 'Effects'), 0x0040) > 0
+	Return BitAND(GetAgentInfo($aAgent, 'Effects'), 0x0040) > 0
 EndFunc   ;==>GetIsPoisoned
 
 ;~ Description: Tests if an agent is enchanted.
 Func GetIsEnchanted($aAgent)
-	If IsDllStruct($aAgent) = 0 Then $aAgent = GetAgentByID($aAgent)
-	Return BitAND(DllStructGetData($aAgent, 'Effects'), 0x0080) > 0
+	Return BitAND(GetAgentInfo($aAgent, 'Effects'), 0x0080) > 0
 EndFunc   ;==>GetIsEnchanted
 
 ;~ Description: Tests if an agent has a degen hex.
 Func GetHasDegenHex($aAgent)
-	If IsDllStruct($aAgent) = 0 Then $aAgent = GetAgentByID($aAgent)
-	Return BitAND(DllStructGetData($aAgent, 'Effects'), 0x0400) > 0
+	Return BitAND(GetAgentInfo($aAgent, 'Effects'), 0x0400) > 0
 EndFunc   ;==>GetHasDegenHex
 
 ;~ Description: Tests if an agent is hexed.
 Func GetHasHex($aAgent)
-	If IsDllStruct($aAgent) = 0 Then $aAgent = GetAgentByID($aAgent)
-	Return BitAND(DllStructGetData($aAgent, 'Effects'), 0x0800) > 0
+	Return BitAND(GetAgentInfo($aAgent, 'Effects'), 0x0800) > 0
 EndFunc   ;==>GetHasHex
 
 ;~ Description: Tests if an agent has a weapon spell.
 Func GetHasWeaponSpell($aAgent)
-	If IsDllStruct($aAgent) = 0 Then $aAgent = GetAgentByID($aAgent)
-	Return BitAND(DllStructGetData($aAgent, 'Effects'), 0x8000) > 0
+	Return BitAND(GetAgentInfo($aAgent, 'Effects'), 0x8000) > 0
 EndFunc   ;==>GetHasWeaponSpell
 
 ;~ Description: Tests if an agent is a boss.
 Func GetIsBoss($aAgent)
-	If IsDllStruct($aAgent) = 0 Then $aAgent = GetAgentByID($aAgent)
-	Return BitAND(DllStructGetData($aAgent, 'TypeMap'), 1024) > 0
+	Return BitAND(GetAgentInfo($aAgent, 'TypeMap'), 1024) > 0
 EndFunc   ;==>GetIsBoss
 
 ;~ Description: Returns a player's name.
 Func GetPlayerName($aAgent)
-	If IsDllStruct($aAgent) = 0 Then $aAgent = GetAgentByID($aAgent)
-	Local $lLogin = DllStructGetData($aAgent, 'LoginNumber')
+	Local $lLogin = GetAgentInfo($aAgent, 'LoginNumber')
 	Local $lOffset[6] = [0, 0x18, 0x2C, 0x80C, 76 * $lLogin + 0x28, 0]
 	Local $lReturn = MemoryReadPtr($mBasePointer, $lOffset, 'wchar[30]')
 	Return $lReturn[1]
@@ -4561,7 +4292,7 @@ EndFunc   ;==>GetMyID
 
 ;~ Description: Returns current target.
 Func GetCurrentTarget()
-	Return GetAgentByID(GetCurrentTargetID())
+	Return GetAgentPtr(GetCurrentTargetID())
 EndFunc   ;==>GetCurrentTarget
 
 ;~ Description: Returns current target ID.
@@ -4760,14 +4491,12 @@ EndFunc   ;==>ComputeDistance
 
 ;~ Description: Returns the distance between two agents.
 Func GetDistance($aAgent1 = -1, $aAgent2 = -2)
-	If IsDllStruct($aAgent1) = 0 Then $aAgent1 = GetAgentByID($aAgent1)
-	If IsDllStruct($aAgent2) = 0 Then $aAgent2 = GetAgentByID($aAgent2)
-	Return Sqrt((DllStructGetData($aAgent1, 'X') - DllStructGetData($aAgent2, 'X')) ^ 2 + (DllStructGetData($aAgent1, 'Y') - DllStructGetData($aAgent2, 'Y')) ^ 2)
+	Return Sqrt((GetAgentInfo($aAgent1, 'X') - GetAgentInfo($aAgent2, 'X')) ^ 2 + (GetAgentInfo($aAgent1, 'Y') - GetAgentInfo($aAgent2, 'Y')) ^ 2)
 EndFunc   ;==>GetDistance
 
 ;~ Description: Return the square of the distance between two agents.
 Func GetPseudoDistance($aAgent1, $aAgent2)
-	Return (DllStructGetData($aAgent1, 'X') - DllStructGetData($aAgent2, 'X')) ^ 2 + (DllStructGetData($aAgent1, 'Y') - DllStructGetData($aAgent2, 'Y')) ^ 2
+	Return (GetAgentInfo($aAgent1, 'X') - GetAgentInfo($aAgent2, 'X')) ^ 2 + (GetAgentInfo($aAgent1, 'Y') - GetAgentInfo($aAgent2, 'Y')) ^ 2
 EndFunc   ;==>GetPseudoDistance
 
 ;~ Description: Checks if a point is within a polygon defined by an array
@@ -4777,9 +4506,9 @@ Func GetIsPointInPolygon($aAreaCoords, $aPosX = 0, $aPosY = 0)
 	Local $lOddNodes = False
 	If $lEdges < 3 Then Return False
 	If $aPosX = 0 Then
-		Local $lAgent = GetAgentByID(-2)
-		$aPosX = DllStructGetData($lAgent, 'X')
-		$aPosY = DllStructGetData($lAgent, 'Y')
+		Local $lAgent = GetAgentPtr(-2)
+		$aPosX = GetAgentInfo($lAgent, 'X')
+		$aPosY = GetAgentInfo($lAgent, 'Y')
 	EndIf
 	$j = $lEdges - 1
 	For $i = 0 To $lEdges - 1
@@ -6880,8 +6609,8 @@ EndFunc   ;==>__ProcessGetName
 
 Func CheckArea($aX, $aY)
     $ret = False
-    $pX = DllStructGetData(GetAgentByID(-2), "X")
-    $pY = DllStructGetData(GetAgentByID(-2), "Y")
+    $pX = GetAgentInfo(-2, "X")
+    $pY = GetAgentInfo(-2, "Y")
 
     If ($pX == $aX) And ($pY == $aY) Then
         $ret = True
@@ -6891,8 +6620,8 @@ EndFunc   ;==>CheckArea
 
 Func CheckAreaWRange($aX, $aY, $range)
     $ret = False
-    $pX = DllStructGetData(GetAgentByID(-2), "X")
-    $pY = DllStructGetData(GetAgentByID(-2), "Y")
+    $pX = GetAgentInfo(-2, "X")
+    $pY = GetAgentInfo(-2, "Y")
 
     If ($pX < $aX + $range) And ($pX > $aX - $range) And ($pY < $aY + $range) And ($pY > $aY - $range) Then
         $ret = True
@@ -6902,8 +6631,8 @@ EndFunc   ;==>CheckAreaRange
 
 Func CheckAreaRange($aX, $aY, $range)
 	$ret = False
-	$pX = DllStructGetData(GetAgentByID(-2), "X")
-	$pY = DllStructGetData(GetAgentByID(-2), "Y")
+	$pX = GetAgentInfo(-2, "X")
+    $pY = GetAgentInfo(-2, "Y")
 
 	If ($pX < $aX + $range) And ($pX > $aX - $range) And ($pY < $aY + $range) And ($pY > $aY - $range) Then
 		$ret = True
@@ -7008,14 +6737,14 @@ Func GetBestTarget($aRange = 1320)
 	Local $lAgentArray = GetAgentArray(0xDB)
 	For $i = 1 To $lAgentArray[0]
 		Local $lSumDistances = 0
-		If DllStructGetData($lAgentArray[$i], 'Allegiance') <> 3 Then ContinueLoop
-		If DllStructGetData($lAgentArray[$i], 'HP') <= 0 Then ContinueLoop
-		If DllStructGetData($lAgentArray[$i], 'ID') = GetMyID() Then ContinueLoop
+		If GetAgentInfo($lAgentArray[$i], 'Allegiance') <> 3 Then ContinueLoop
+		If GetAgentInfo($lAgentArray[$i], 'HP') <= 0 Then ContinueLoop
+		If GetAgentInfo($lAgentArray[$i], 'ID') = GetMyID() Then ContinueLoop
 		If GetDistance($lAgentArray[$i]) > $aRange Then ContinueLoop
 		For $j = 1 To $lAgentArray[0]
-			If DllStructGetData($lAgentArray[$j], 'Allegiance') <> 3 Then ContinueLoop
-			If DllStructGetData($lAgentArray[$j], 'HP') <= 0 Then ContinueLoop
-			If DllStructGetData($lAgentArray[$j], 'ID') = GetMyID() Then ContinueLoop
+			If GetAgentInfo($lAgentArray[$j], 'Allegiance') <> 3 Then ContinueLoop
+			If GetAgentInfo($lAgentArray[$j], 'HP') <= 0 Then ContinueLoop
+			If GetAgentInfo($lAgentArray[$j], 'ID') = GetMyID() Then ContinueLoop
 			If GetDistance($lAgentArray[$j]) > $aRange Then ContinueLoop
 			$lDistance = GetDistance($lAgentArray[$i], $lAgentArray[$j])
 			$lSumDistances += $lDistance
@@ -7122,16 +6851,14 @@ Func GetCountInRangeOfAgent($aAgent = -2, $aRange = $DistanceCasting, $aAllegian
 	Local $lAgent, $lDistance
 	Local $lCount = 0
 
-	If Not IsDllStruct($aAgent) Then $aAgent = GetAgentByID($aAgent)
-
 	For $i = 1 To GetMaxAgents()
-		$lAgent = GetAgentByID($i)
+		$lAgent = GetAgentPtr($i)
 
-		If DllStructGetData($lAgent, 'Type') <> $aType Then ContinueLoop
+		If GetAgentInfo($lAgent, 'Type') <> $aType Then ContinueLoop
 		If $aType == $TypeUnit Then
-			If DllStructGetData($lAgent, 'Allegiance') <> $aAllegiance Then ContinueLoop
-			If DllStructGetData($lAgent, 'HP') <= 0 Then ContinueLoop
-			If BitAND(DllStructGetData($lAgent, 'Effects'), 0x0010) > 0 Then ContinueLoop
+			If GetAgentInfo($lAgent, 'Allegiance') <> $aAllegiance Then ContinueLoop
+			If GetAgentInfo($lAgent, 'HP') <= 0 Then ContinueLoop
+			If BitAND(GetAgentInfo($lAgent, 'Effects'), 0x0010) > 0 Then ContinueLoop
 		ElseIf $aType == $TypeObject Then
 
 		ElseIf $aType == $TypeLooteable Then
@@ -7151,16 +6878,14 @@ Func GetClosestInRangeOfAgent($aAgent = -2, $aRange = $DistanceCasting, $aAllegi
 	Local $lClosestAgent = 0
 	Local $lMinDistance = 100000000 ; Arbitrarily large number to ensure any real distance is smaller.
 
-	If Not IsDllStruct($aAgent) Then $aAgent = GetAgentByID($aAgent)
-
 	For $i = 1 To GetMaxAgents()
-		$lAgent = GetAgentByID($i)
+		$lAgent = GetAgentPtr($i)
 
-		If DllStructGetData($lAgent, 'Type') <> $aType Then ContinueLoop
+		If GetAgentInfo($lAgent, 'Type') <> $aType Then ContinueLoop
 		If $aType == $TypeUnit Then
-			If DllStructGetData($lAgent, 'Allegiance') <> $aAllegiance Then ContinueLoop
-			If DllStructGetData($lAgent, 'HP') <= 0 Then ContinueLoop
-			If BitAND(DllStructGetData($lAgent, 'Effects'), 0x0010) > 0 Then ContinueLoop
+			If GetAgentInfo($lAgent, 'Allegiance') <> $aAllegiance Then ContinueLoop
+			If GetAgentInfo($lAgent, 'HP') <= 0 Then ContinueLoop
+			If BitAND(GetAgentInfo($lAgent, 'Effects'), 0x0010) > 0 Then ContinueLoop
 		ElseIf $aType == $TypeObject Then
 			; Include additional conditions specific to TypeObject if necessary
 		ElseIf $aType == $TypeLooteable Then
@@ -7183,16 +6908,15 @@ Func GetClosestInRangeOfAgent2($aAgent = -2, $aRange = $DistanceCasting, $aAlleg
 	Local $lClosestAgent = 0
 	Local $lMinDistance = 1000 ; Arbitrarily large number to ensure any real distance is smaller.
 
-	If Not IsDllStruct($aAgent) Then $aAgent = GetAgentByID($aAgent)
 
 	For $i = 1 To GetMaxAgents()
-		$lAgent = GetAgentByID($i)
+		$lAgent = GetAgentPtr($i)
 
-		If DllStructGetData($lAgent, 'Type') <> $aType Then ContinueLoop
+		If GetAgentInfo($lAgent, 'Type') <> $aType Then ContinueLoop
 		If $aType == $TypeUnit Then
-			If DllStructGetData($lAgent, 'Allegiance') <> $aAllegiance Then ContinueLoop
-			If DllStructGetData($lAgent, 'HP') <= 0 Then ContinueLoop
-			If BitAND(DllStructGetData($lAgent, 'Effects'), 0x0010) > 0 Then ContinueLoop
+			If GetAgentInfo($lAgent, 'Allegiance') <> $aAllegiance Then ContinueLoop
+			If GetAgentInfo($lAgent, 'HP') <= 0 Then ContinueLoop
+			If BitAND(GetAgentInfo($lAgent, 'Effects'), 0x0010) > 0 Then ContinueLoop
 		ElseIf $aType == $TypeObject Then
 			; Include additional conditions specific to TypeObject if necessary
 		ElseIf $aType == $TypeLooteable Then
@@ -7209,34 +6933,19 @@ Func GetClosestInRangeOfAgent2($aAgent = -2, $aRange = $DistanceCasting, $aAlleg
 	Return $lClosestAgent
 EndFunc   ;==>GetClosestInRangeOfAgent2
 
-
-
-; Function to get the number of enemy units within a specified range.
-Func GetNumberOfFoesInRangeOfAgent($aAgent = -2, $aRange = 1250)
-	If Not IsDllStruct($aAgent) Then
-		$aAgent = GetAgentByID($aAgent)
-		If @error Then Return SetError(1, 0, 0) ; Ensure $aAgent is valid.
-	EndIf
-
-	If $aRange <= 0 Then Return SetError(2, 0, 0)
-
-	Return GetCountInRangeOfAgent($aAgent, $aRange, $UnitTypeEnemy, $TypeUnit)
-EndFunc   ;==>GetNumberOfFoesInRangeOfAgent
-
 Func GetNumberOfFoesInRangeOfAgent2($aAgent = -2, $aRange = 1250)
 	Local $lAgent, $lDistance
 	Local $lCount = 0
 
-	If Not IsDllStruct($aAgent) Then $aAgent = GetAgentByID($aAgent)
 
 	For $i = 1 To GetMaxAgents()
-		$lAgent = GetAgentByID($i)
-		If BitAND(DllStructGetData($lAgent, 'typemap'), 262144) Then ContinueLoop
-		If DllStructGetData($lAgent, 'Type') <> 0xDB Then ContinueLoop
-		If DllStructGetData($lAgent, 'Allegiance') <> 3 Then ContinueLoop
+		$lAgent = GetAgentPtr($i)
+		If BitAND(GetAgentInfo($lAgent, 'typemap'), 262144) Then ContinueLoop
+		If GetAgentInfo($lAgent, 'Type') <> 0xDB Then ContinueLoop
+		If GetAgentInfo($lAgent, 'Allegiance') <> 3 Then ContinueLoop
 
-		If DllStructGetData($lAgent, 'HP') <= 0 Then ContinueLoop
-		If BitAND(DllStructGetData($lAgent, 'Effects'), 0x0010) > 0 Then ContinueLoop
+		If GetAgentInfo($lAgent, 'HP') <= 0 Then ContinueLoop
+		If BitAND(GetAgentInfo($lAgent, 'Effects'), 0x0010) > 0 Then ContinueLoop
 		$lDistance = GetDistance($lAgent, $aAgent)
 
 		If $lDistance > $aRange Then ContinueLoop
